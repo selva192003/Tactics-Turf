@@ -1,0 +1,33 @@
+# Dependency directories
+/node_modules
+/fantasy-sports-frontend/node_modules
+/fantasy-sports-backend/node_modules
+
+# Environment variables
+.env
+/fantasy-sports-frontend/.env.local
+/fantasy-sports-backend/.env
+
+# Next.js build artifacts
+.next/
+out/
+.vercel/
+
+# Editor files
+.vscode/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+
+# Other temporary files
+*.log
+*.pnpm-debug.log*
+
+# Firebase credentials (CRITICAL)
+/fantasy-sports-backend/firebase-admin.json
+
+
+# Production build artifacts
+/build
+/dist
