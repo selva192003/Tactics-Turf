@@ -1,541 +1,361 @@
 # Tactics Turf - Fantasy Sports Backend
 
-A robust, scalable backend API for the Tactics Turf fantasy sports platform, built with Node.js, Express, MongoDB, and Redis.
+A comprehensive backend API for the Tactics Turf fantasy sports platform, built with Node.js, Express, and MongoDB.
 
 ## 🚀 Features
 
-### Core Functionality
-- **User Management**: Secure authentication with JWT, role-based access control
-- **Match Management**: Live match data, upcoming matches, and fantasy enablement
+- **User Management**: Registration, authentication, profile management
+- **Match Management**: Live matches, upcoming matches, match details
 - **Contest System**: Public/private contests with entry fees and prize pools
-- **Fantasy Teams**: Player selection, captain/vice-captain designation, team validation
-- **Real-time Updates**: WebSocket integration for live leaderboards and notifications
-- **Wallet System**: Secure transactions, deposits, withdrawals, and balance management
-- **Admin Dashboard**: Comprehensive platform management tools
-- **Notification System**: Multi-channel notifications (in-app, email, push, SMS)
-
-### Technical Features
-- **RESTful API**: Well-structured endpoints with comprehensive documentation
-- **Real-time Communication**: Socket.IO for WebSocket connections
-- **Caching**: Redis-based caching for improved performance
-- **Authentication**: JWT-based auth with refresh tokens and role management
-- **Validation**: Request validation using Joi schemas
-- **Error Handling**: Centralized error handling with proper HTTP status codes
-- **Logging**: Winston-based structured logging
-- **Rate Limiting**: API rate limiting for security
-- **Security**: Helmet for security headers, CORS configuration
-
-## 🏗️ Architecture
-
-```
-src/
-├── api/
-│   └── routes/           # API route handlers
-│       ├── auth.js       # Authentication routes
-│       ├── matches.js    # Match management
-│       ├── contests.js   # Contest operations
-│       ├── teams.js      # Fantasy team management
-│       ├── players.js    # Player data
-│       ├── wallet.js     # Wallet operations
-│       ├── admin.js      # Admin dashboard
-│       └── notifications.js # Notification system
-├── config/               # Configuration files
-│   └── firebase.js      # Firebase configuration
-├── middleware/           # Custom middleware
-│   ├── auth.js          # Authentication middleware
-│   ├── errorHandler.js  # Error handling
-│   └── validation.js    # Request validation
-├── models/              # Mongoose schemas
-│   ├── User.js          # User model
-│   ├── Match.js         # Match model
-│   ├── Player.js        # Player model
-│   ├── Contest.js       # Contest model
-│   ├── FantasyTeam.js   # Fantasy team model
-│   ├── Transaction.js   # Transaction model
-│   └── Notification.js  # Notification model
-└── services/            # Business logic services
-    ├── logger.js        # Logging service
-    ├── redis.js         # Redis operations
-    ├── websocket.js     # WebSocket management
-    ├── notificationService.js # Notification handling
-    └── sportsApi.js     # External sports API integration
-```
+- **Fantasy Teams**: Player selection, captain/vice-captain, team validation
+- **Real-time Updates**: WebSocket integration for live scores and leaderboards
+- **Wallet System**: Deposits, withdrawals, transaction history
+- **Payment Integration**: Stripe, Razorpay, UPI support
+- **Admin Dashboard**: User management, contest management, analytics
+- **Notification System**: Push, email, SMS, and in-app notifications
+- **Scoring Engine**: Configurable scoring rules per sport
+- **Caching**: Redis-based caching for performance optimization
 
 ## 🛠️ Tech Stack
 
 - **Runtime**: Node.js 18+
-- **Framework**: Express.js
+- **Framework**: Express.js 5.x
 - **Database**: MongoDB with Mongoose ODM
 - **Cache**: Redis
-- **Authentication**: JWT (JSON Web Tokens)
+- **Authentication**: JWT with refresh tokens
 - **Real-time**: Socket.IO
 - **Validation**: Joi
 - **Logging**: Winston
-- **Security**: Helmet, express-rate-limit
 - **File Upload**: Multer
-- **Scheduling**: node-cron
-- **Email**: Nodemailer
-- **SMS**: Twilio
-- **Compression**: compression
+- **Payments**: Stripe, Razorpay
+- **Testing**: Jest, Supertest
+- **Linting**: ESLint
+- **TypeScript**: Support included
 
 ## 📋 Prerequisites
 
-- Node.js 18.0.0 or higher
-- MongoDB 5.0 or higher
-- Redis 6.0 or higher
-- npm or yarn package manager
+- Node.js 18+ 
+- MongoDB 5+
+- Redis 6+
+- npm or yarn
 
-## 🚀 Installation
+## 🚀 Quick Start
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd fantasy-sports-backend
-   ```
+### 1. Clone and Install
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+```bash
+git clone <repository-url>
+cd fantasy-sports-backend
+npm install
+```
 
-3. **Environment Configuration**
-   Create a `.env` file in the root directory:
-   ```env
-   # Server Configuration
-   PORT=5000
-   NODE_ENV=development
-   
-   # MongoDB Configuration
-   MONGODB_URI=mongodb://localhost:27017/tactics-turf
-   
-   # Redis Configuration
-   REDIS_URL=redis://localhost:6379
-   
-   # JWT Configuration
-   JWT_SECRET=your-super-secret-jwt-key
-   JWT_REFRESH_SECRET=your-refresh-secret-key
-   JWT_EXPIRES_IN=15m
-   JWT_REFRESH_EXPIRES_IN=7d
-   
-   # External APIs
-   SPORTS_API_KEY=your-sports-api-key
-   
-   # Payment Gateways
-   STRIPE_SECRET_KEY=your-stripe-secret-key
-   RAZORPAY_KEY_ID=your-razorpay-key-id
-   RAZORPAY_KEY_SECRET=your-razorpay-secret
-   
-   # Email Configuration
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-app-password
-   
-   # SMS Configuration
-   TWILIO_ACCOUNT_SID=your-twilio-sid
-   TWILIO_AUTH_TOKEN=your-twilio-token
-   TWILIO_PHONE_NUMBER=your-twilio-phone
-   
-   # Logging
-   LOG_LEVEL=info
-   LOG_DIR=logs
-   ```
+### 2. Environment Setup
 
-4. **Database Setup**
-   ```bash
-   # Start MongoDB (if using Docker)
-   docker run -d -p 27017:27017 --name mongodb mongo:latest
-   
-   # Start Redis (if using Docker)
-   docker run -d -p 6379:6379 --name redis redis:latest
-   ```
+```bash
+cp config.env.example .env
+# Edit .env with your configuration
+```
 
-5. **Run the application**
-   ```bash
-   # Development mode
-   npm run dev
-   
-   # Production mode
-   npm start
-   ```
+### 3. Database Setup
+
+```bash
+# Start MongoDB
+mongod
+
+# Start Redis
+redis-server
+```
+
+### 4. Run the Application
+
+```bash
+# Development mode
+npm run dev
+
+# Production mode
+npm start
+
+# Test mode
+npm test
+```
+
+The server will start on `http://localhost:5000`
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Key configuration options in `.env`:
+
+```bash
+# Server
+NODE_ENV=development
+PORT=5000
+
+# Database
+MONGODB_URI=mongodb://localhost:27017/tactics_turf
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=your-secret-key
+JWT_EXPIRES_IN=15m
+
+# Sports API
+SPORTS_API_KEY=your-api-key
+
+# Payment Gateways
+STRIPE_SECRET_KEY=your-stripe-key
+RAZORPAY_KEY_ID=your-razorpay-key
+```
 
 ## 📚 API Documentation
 
+### Base URL
+```
+http://localhost:5000/api
+```
+
 ### Authentication Endpoints
 
-#### POST `/api/auth/register`
-Register a new user account.
-```json
-{
-  "username": "johndoe",
-  "email": "john@example.com",
-  "password": "securepassword123",
-  "fullName": "John Doe",
-  "phone": "+1234567890",
-  "referralCode": "FRIEND123"
-}
-```
-
-#### POST `/api/auth/login`
-Authenticate user and get access token.
-```json
-{
-  "email": "john@example.com",
-  "password": "securepassword123"
-}
-```
-
-#### POST `/api/auth/refresh`
-Refresh access token using refresh token.
-```json
-{
-  "refreshToken": "your-refresh-token"
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/register` | User registration |
+| POST | `/auth/login` | User login |
+| POST | `/auth/refresh` | Refresh JWT token |
+| GET | `/auth/me` | Get current user profile |
+| PUT | `/auth/profile` | Update user profile |
+| POST | `/auth/logout` | User logout |
 
 ### Match Endpoints
 
-#### GET `/api/matches`
-Get all matches with filtering and pagination.
-```
-Query Parameters:
-- sport: Filter by sport type
-- status: Filter by match status
-- page: Page number (default: 1)
-- limit: Items per page (default: 20)
-- search: Search in match titles
-```
-
-#### GET `/api/matches/:id`
-Get detailed information about a specific match.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/matches` | Get all matches with filters |
+| GET | `/matches/upcoming` | Get upcoming matches |
+| GET | `/matches/live` | Get live matches |
+| GET | `/matches/:id` | Get match by ID |
+| GET | `/matches/:id/contests` | Get contests for a match |
 
 ### Contest Endpoints
 
-#### GET `/api/contests`
-Get all contests with filtering and pagination.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/contests` | Get all contests |
+| GET | `/contests/featured` | Get featured contests |
+| GET | `/contests/:id` | Get contest by ID |
+| POST | `/contests` | Create new contest (Admin) |
+| POST | `/contests/:id/join` | Join a contest |
+| DELETE | `/contests/:id/leave` | Leave a contest |
 
-#### POST `/api/contests/:id/join`
-Join a contest (requires authentication).
+### Team Endpoints
 
-#### GET `/api/contests/:id/leaderboard`
-Get contest leaderboard in real-time.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/teams` | Get user's fantasy teams |
+| POST | `/teams` | Create new fantasy team |
+| PUT | `/teams/:id` | Update fantasy team |
+| POST | `/teams/:id/submit` | Submit fantasy team |
+| POST | `/teams/:id/players` | Add player to team |
 
-### Team Management
+### Wallet Endpoints
 
-#### POST `/api/teams`
-Create a new fantasy team.
-```json
-{
-  "name": "My Dream Team",
-  "matchId": "match123",
-  "players": [
-    {
-      "playerId": "player1",
-      "role": "captain"
-    },
-    {
-      "playerId": "player2",
-      "role": "vice_captain"
-    }
-  ]
-}
-```
-
-### Wallet Operations
-
-#### GET `/api/wallet/balance`
-Get user's wallet balance and statistics.
-
-#### POST `/api/wallet/deposit`
-Deposit money into wallet.
-```json
-{
-  "amount": 1000,
-  "paymentMethod": "upi",
-  "upiId": "john@upi"
-}
-```
-
-#### POST `/api/wallet/withdraw`
-Request withdrawal from wallet.
-```json
-{
-  "amount": 500,
-  "bankAccount": "1234567890",
-  "ifscCode": "SBIN0001234"
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/wallet/balance` | Get wallet balance |
+| GET | `/wallet/transactions` | Get transaction history |
+| POST | `/wallet/deposit` | Deposit money |
+| POST | `/wallet/withdraw` | Withdraw money |
+| POST | `/wallet/transfer` | Transfer to another user |
 
 ### Admin Endpoints
 
-#### GET `/api/admin/dashboard`
-Get admin dashboard statistics (admin only).
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/dashboard` | Admin dashboard stats |
+| GET | `/admin/users` | Get all users |
+| POST | `/admin/users` | Create new user |
+| PUT | `/admin/users/:id` | Update user |
+| GET | `/admin/contests` | Get all contests |
+| POST | `/admin/matches` | Create new match |
 
-#### GET `/api/admin/users`
-Get all users with filtering (admin only).
-
-#### POST `/api/admin/users`
-Create new user (super admin only).
-
-### Notifications
-
-#### GET `/api/notifications`
-Get user notifications with pagination.
-
-#### PUT `/api/notifications/:id/read`
-Mark notification as read.
-
-#### GET `/api/notifications/settings`
-Get user notification preferences.
-
-## 🔐 Authentication & Authorization
-
-### JWT Token Structure
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresIn": 900,
-  "refreshExpiresIn": 604800
-}
-```
-
-### Role-Based Access Control
-- **user**: Regular user with basic permissions
-- **admin**: Administrative access to manage contests and users
-- **super_admin**: Full system access including user role management
-
-### Protected Routes
-Most routes require authentication via the `Authorization` header:
-```
-Authorization: Bearer <access-token>
-```
-
-## 🌐 WebSocket Events
-
-### Client Events
-- `joinMatch`: Join match room for real-time updates
-- `joinContest`: Join contest room for leaderboard updates
-- `privateMessage`: Send private message to another user
-
-### Server Events
-- `matchUpdate`: Live match score and status updates
-- `leaderboardUpdate`: Real-time contest leaderboard changes
-- `notification`: New notification delivery
-- `walletUpdate`: Wallet balance changes
-
-## 📊 Database Models
+## 🗄️ Database Schema
 
 ### User Model
 - Authentication details (username, email, password)
-- Profile information (fullName, phone, avatar, dateOfBirth)
-- Wallet management (balance, transactions)
+- Profile information (fullName, phone, avatar)
+- Wallet details (balance, transactions)
 - Preferences and settings
-- Referral system
+- Role-based access control
 
 ### Match Model
-- Match details (teams, venue, start/end time)
-- Fantasy settings (deadline, max contests)
-- Live data (scores, highlights, streaming)
+- Match information (teams, venue, timing)
+- Live scores and statistics
+- Fantasy enablement settings
+- Contest limits and deadlines
 
 ### Contest Model
-- Contest configuration (entry fee, prize pool, spots)
+- Contest details (name, entry fee, prize pool)
 - Participant management
-- Leaderboard and scoring
-- Status tracking
+- Leaderboard and rankings
+- Prize distribution
 
 ### FantasyTeam Model
-- Team composition and formation
-- Player roles (captain, vice-captain)
-- Points calculation and ranking
-- Submission and locking status
+- Team composition and players
+- Captain/vice-captain selection
+- Points calculation
+- Formation and strategy
 
-## 🚀 Performance & Scalability
+### Transaction Model
+- Payment details and status
+- Gateway integration
+- Fee calculations
+- Settlement tracking
 
-### Caching Strategy
-- **Redis Caching**: Frequently accessed data (matches, contests, leaderboards)
-- **Query Optimization**: Database indexes on frequently queried fields
-- **Pagination**: Efficient data retrieval with cursor-based pagination
+### Notification Model
+- Multi-channel delivery (email, push, SMS, in-app)
+- Targeting and scheduling
+- Delivery tracking
+- User preferences
 
-### Real-time Updates
-- **WebSocket Connections**: Persistent connections for live updates
-- **Room Management**: Efficient broadcasting to specific user groups
-- **Event Queuing**: Handle high-frequency updates gracefully
+## 🔐 Authentication & Authorization
 
-### Database Optimization
-- **Indexing**: Strategic indexes on query patterns
-- **Aggregation**: MongoDB aggregation for complex analytics
-- **Connection Pooling**: Efficient database connection management
+### JWT Implementation
+- Access tokens (15 minutes)
+- Refresh tokens (7 days)
+- Secure token storage
+- Automatic token refresh
 
-## 🔒 Security Features
+### Role-Based Access Control
+- **User**: Basic fantasy sports features
+- **Moderator**: Contest management, user moderation
+- **Admin**: Full system access, user management
+- **Super Admin**: System configuration, admin management
 
-### API Security
-- **Rate Limiting**: Prevent API abuse and DDoS attacks
-- **Input Validation**: Joi schemas for request validation
-- **SQL Injection Protection**: Mongoose ODM with parameterized queries
-- **XSS Protection**: Helmet security headers
+## 📡 Real-time Features
 
-### Authentication Security
-- **JWT Tokens**: Secure token-based authentication
-- **Password Hashing**: bcrypt with salt rounds
-- **Token Refresh**: Automatic token renewal
-- **Session Management**: Secure session handling
+### WebSocket Events
+- Match score updates
+- Contest leaderboard changes
+- User wallet updates
+- System notifications
+- Live chat (planned)
 
-### Data Protection
-- **Data Encryption**: Sensitive data encryption at rest
-- **Access Control**: Role-based permissions
-- **Audit Logging**: Comprehensive action logging
-- **Input Sanitization**: Clean and validate all inputs
+### Socket.IO Integration
+- Authenticated connections
+- Room-based messaging
+- Event broadcasting
+- Connection management
 
-## 📝 Logging & Monitoring
+## 💳 Payment Integration
 
-### Logging Levels
-- **error**: Application errors and exceptions
-- **warn**: Warning conditions
-- **info**: General information
-- **debug**: Detailed debugging information
+### Supported Gateways
+- **Stripe**: International payments
+- **Razorpay**: Indian market
+- **UPI**: Direct bank transfers
 
-### Log Categories
-- **Access Logs**: HTTP request/response logging
-- **Error Logs**: Application error tracking
-- **Performance Logs**: Response time and resource usage
-- **Security Logs**: Authentication and authorization events
-
-### Monitoring
-- **Health Checks**: `/health` endpoint for system status
-- **Performance Metrics**: Response time tracking
-- **Error Tracking**: Centralized error collection
-- **Resource Usage**: Memory and CPU monitoring
+### Payment Flow
+1. User initiates payment
+2. Gateway integration
+3. Payment verification
+4. Wallet credit
+5. Transaction recording
 
 ## 🧪 Testing
 
 ### Test Structure
 ```bash
 npm test              # Run all tests
-npm run test:unit     # Unit tests only
-npm run test:integration # Integration tests only
-npm run test:coverage # Test coverage report
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
 ```
 
 ### Test Categories
-- **Unit Tests**: Individual function and method testing
-- **Integration Tests**: API endpoint testing
-- **Database Tests**: Model and query testing
-- **WebSocket Tests**: Real-time communication testing
+- Unit tests for models and services
+- Integration tests for API endpoints
+- Authentication and authorization tests
+- Payment flow tests
+
+## 📊 Monitoring & Logging
+
+### Winston Logging
+- Multiple log levels
+- File and console output
+- Log rotation
+- Error tracking
+
+### Performance Monitoring
+- Request/response logging
+- Database query monitoring
+- Cache hit/miss tracking
+- Error rate monitoring
 
 ## 🚀 Deployment
 
-### Environment Variables
-Configure production environment variables:
-```env
-NODE_ENV=production
-PORT=5000
-MONGODB_URI=mongodb://production-db:27017/tactics-turf
-REDIS_URL=redis://production-redis:6379
-JWT_SECRET=production-jwt-secret
-```
-
-### Docker Deployment
+### Docker Support
 ```bash
-# Build Docker image
+# Build image
 docker build -t tactics-turf-backend .
 
 # Run container
-docker run -d -p 5000:5000 --name tactics-turf-backend tactics-turf-backend
+docker run -p 5000:5000 tactics-turf-backend
 ```
 
-### PM2 Process Management
-```bash
-# Install PM2
-npm install -g pm2
+### Environment-Specific Configs
+- Development: Local MongoDB, Redis
+- Staging: Cloud databases, limited features
+- Production: High-availability setup, monitoring
 
-# Start application
-pm2 start ecosystem.config.js
+## 🔒 Security Features
 
-# Monitor processes
-pm2 monit
-```
+- **Helmet**: Security headers
+- **Rate Limiting**: API abuse prevention
+- **CORS**: Cross-origin protection
+- **Input Validation**: Joi schema validation
+- **SQL Injection**: Mongoose protection
+- **XSS Protection**: Input sanitization
 
-## 🔧 Development
+## 📈 Performance Optimization
 
-### Code Style
-- **ESLint**: Code linting and style enforcement
-- **Prettier**: Code formatting
-- **TypeScript**: Type checking (optional)
-
-### Git Workflow
-```bash
-# Feature development
-git checkout -b feature/new-feature
-git add .
-git commit -m "feat: add new feature"
-git push origin feature/new-feature
-
-# Bug fixes
-git checkout -b fix/bug-description
-git add .
-git commit -m "fix: resolve bug description"
-git push origin fix/bug-description
-```
-
-### API Development
-1. Define data models in `src/models/`
-2. Create route handlers in `src/api/routes/`
-3. Add validation schemas in `src/middleware/validation.js`
-4. Implement business logic in `src/services/`
-5. Add tests for new functionality
-6. Update API documentation
-
-## 📚 Additional Resources
-
-### External APIs
-- **Sports Data**: Integration with sports APIs for live match data
-- **Payment Gateways**: Stripe, Razorpay, UPI integration
-- **Email Services**: SMTP, SendGrid, AWS SES
-- **SMS Services**: Twilio, AWS SNS
-
-### Third-party Services
-- **Monitoring**: Sentry for error tracking
-- **Analytics**: Google Analytics, Mixpanel
-- **CDN**: Cloudflare, AWS CloudFront
-- **Storage**: AWS S3, Google Cloud Storage
+- **Redis Caching**: Frequently accessed data
+- **Database Indexing**: Optimized queries
+- **Connection Pooling**: Database efficiency
+- **Compression**: Response size reduction
+- **CDN Integration**: Static asset delivery
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+4. Add tests for new features
+5. Submit a pull request
 
-## 📄 License
+## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
 For support and questions:
-- Create an issue in the GitHub repository
+- Create an issue in the repository
 - Contact the development team
-- Check the documentation and API reference
+- Check the documentation
 
 ## 🔮 Roadmap
 
-### Upcoming Features
-- **GraphQL API**: Alternative to REST API
-- **Microservices**: Service decomposition for scalability
-- **Event Sourcing**: Event-driven architecture
-- **Machine Learning**: Predictive analytics and recommendations
-- **Multi-language Support**: Internationalization (i18n)
-- **Advanced Analytics**: User behavior and platform insights
-
-### Performance Improvements
-- **Database Sharding**: Horizontal scaling
-- **CDN Integration**: Global content delivery
-- **Load Balancing**: Traffic distribution
-- **Auto-scaling**: Dynamic resource allocation
+- [ ] GraphQL API support
+- [ ] Advanced analytics dashboard
+- [ ] Machine learning for player recommendations
+- [ ] Multi-language support
+- [ ] Advanced contest types
+- [ ] Social features and leaderboards
+- [ ] Mobile app API optimization
+- [ ] Advanced payment methods
+- [ ] Real-time chat system
+- [ ] Advanced notification preferences
 
 ---
 
-**Built with ❤️ for the Tactics Turf fantasy sports platform**
+**Built with ❤️ by the Tactics Turf Team**

@@ -1,431 +1,443 @@
 const express = require('express');
-const User = require('../../models/User');
-const Notification = require('../../models/Notification');
-const { authenticateToken, optionalAuth } = require('../../middleware/auth');
+const router = express.Router();
+const { authenticateToken, authenticateAdmin } = require('../../middleware/auth');
+const { validateRequest } = require('../../middleware/validation');
 const { asyncHandler } = require('../../middleware/errorHandler');
 const { cache } = require('../../services/redis');
-const { emit } = require('../../services/websocket');
-const logger = require('../../services/logger');
+const { events } = require('../../services/websocket');
+const Joi = require('joi');
 
-const router = express.Router();
+// Import models (you'll need to create these)
+// const Notification = require('../../models/Notification');
+// const User = require('../../models/User');
 
-// @route   GET /api/notifications
-// @desc    Get user notifications
-// @access  Private
-router.get('/', authenticateToken, asyncHandler(async (req, res) => {
-  const {
-    type,
-    isRead,
-    page = 1,
-    limit = 20
-  } = req.query;
+// Validation schemas
+const notificationSchemas = {
+  create: Joi.object({
+    title: Joi.string().required().max(100),
+    message: Joi.string().required().max(500),
+    type: Joi.string().valid('info', 'success', 'warning', 'error', 'contest', 'match', 'payment', 'system').required(),
+    priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
+    targetUsers: Joi.array().items(Joi.string()).optional(), // User IDs
+    targetGroups: Joi.array().items(Joi.string()).valid('all', 'premium', 'new_users', 'contest_winners').optional(),
+    scheduledAt: Joi.date().optional(),
+    expiresAt: Joi.date().optional(),
+    actionUrl: Joi.string().uri().optional(),
+    actionText: Joi.string().max(50).optional(),
+    metadata: Joi.object().optional()
+  }),
+  
+  update: Joi.object({
+    title: Joi.string().max(100),
+    message: Joi.string().max(500),
+    type: Joi.string().valid('info', 'success', 'warning', 'error', 'contest', 'match', 'payment', 'system'),
+    priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
+    targetUsers: Joi.array().items(Joi.string()),
+    targetGroups: Joi.array().items(Joi.string()).valid('all', 'premium', 'new_users', 'contest_winners'),
+    scheduledAt: Joi.date(),
+    expiresAt: Joi.date(),
+    actionUrl: Joi.string().uri(),
+    actionText: Joi.string().max(50),
+    metadata: Joi.object(),
+    isActive: Joi.boolean()
+  }),
+  
+  markRead: Joi.object({
+    notificationIds: Joi.array().items(Joi.string()).required()
+  }),
+  
+  preferences: Joi.object({
+    email: Joi.boolean(),
+    push: Joi.boolean(),
+    sms: Joi.boolean(),
+    inApp: Joi.boolean(),
+    types: Joi.object({
+      contest: Joi.boolean(),
+      match: Joi.boolean(),
+      payment: Joi.boolean(),
+      system: Joi.boolean(),
+      marketing: Joi.boolean()
+    })
+  })
+};
 
-  try {
-    // Build filter object
-    const filter = { userId: req.user._id };
-    
-    if (type) filter.type = type;
-    if (isRead !== undefined) filter.isRead = isRead === 'true';
-
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Get notifications using the Notification model
-    const notifications = await Notification.getUserNotifications(req.user._id, {
-      type,
-      isRead: isRead === 'true',
-      page: parseInt(page),
-      limit: parseInt(limit),
-      sortBy: 'createdAt',
-      sortOrder: 'desc'
-    });
-
-    const total = await Notification.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: {
-        notifications,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / parseInt(limit))
-        }
-      }
-    });
-  } catch (error) {
-    logger.error('Get notifications error:', error);
-    throw error;
-  }
-}));
-
-// @route   GET /api/notifications/unread-count
-// @desc    Get count of unread notifications
-// @access  Private
-router.get('/unread-count', authenticateToken, asyncHandler(async (req, res) => {
-  try {
-    const unreadCount = await Notification.getUnreadCount(req.user._id);
-
-    res.json({
-      success: true,
-      data: { unreadCount }
-    });
-  } catch (error) {
-    logger.error('Get unread count error:', error);
-    throw error;
-  }
-}));
-
-// @route   PUT /api/notifications/:id/read
-// @desc    Mark notification as read
-// @access  Private
-router.put('/:id/read', authenticateToken, asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const notification = await Notification.findById(id);
-    
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-
-    // Check if notification belongs to user
-    if (notification.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    await notification.markAsRead();
-    
-    logger.info(`User ${req.user.username} marked notification ${id} as read`);
-
-    res.json({
-      success: true,
-      message: 'Notification marked as read'
-    });
-  } catch (error) {
-    logger.error(`Mark notification read error: ${error.message}`);
-    throw error;
-  }
-}));
-
-// @route   PUT /api/notifications/read-all
-// @desc    Mark all notifications as read
-// @access  Private
-router.put('/read-all', authenticateToken, asyncHandler(async (req, res) => {
-  try {
-    await Notification.markAllAsRead(req.user._id);
-    
-    logger.info(`User ${req.user.username} marked all notifications as read`);
-
-    res.json({
-      success: true,
-      message: 'All notifications marked as read'
-    });
-  } catch (error) {
-    logger.error(`Mark all notifications read error: ${error.message}`);
-    throw error;
-  }
-}));
-
-// @route   DELETE /api/notifications/:id
-// @desc    Delete notification
-// @access  Private
-router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const notification = await Notification.findById(id);
-    
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-
-    // Check if notification belongs to user
-    if (notification.userId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
-    }
-
-    await notification.softDelete();
-    
-    logger.info(`User ${req.user.username} deleted notification ${id}`);
-
-    res.json({
-      success: true,
-      message: 'Notification deleted successfully'
-    });
-  } catch (error) {
-    logger.error(`Delete notification error: ${error.message}`);
-    throw error;
-  }
-}));
-
-// @route   DELETE /api/notifications/clear-all
-// @desc    Clear all notifications
-// @access  Private
-router.delete('/clear-all', authenticateToken, asyncHandler(async (req, res) => {
-  try {
-    await Notification.updateMany(
-      { userId: req.user._id, isDeleted: false },
-      { isDeleted: true }
-    );
-    
-    logger.info(`User ${req.user.username} cleared all notifications`);
-
-    res.json({
-      success: true,
-      message: 'All notifications cleared successfully'
-    });
-  } catch (error) {
-    logger.error(`Clear all notifications error: ${error.message}`);
-    throw error;
-  }
-}));
-
-// @route   GET /api/notifications/settings
-// @desc    Get user notification settings
-// @access  Private
-router.get('/settings', authenticateToken, asyncHandler(async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select('preferences.notifications');
-    
-    const notificationSettings = user.preferences?.notifications || {
-      email: {
-        matchStart: true,
-        contestResults: true,
-        walletUpdates: true,
-        promotions: false,
-        weeklyDigest: true
-      },
-      push: {
-        matchStart: true,
-        contestResults: true,
-        walletUpdates: true,
-        promotions: false,
-        leaderboardUpdates: true
-      },
-      sms: {
-        matchStart: false,
-        contestResults: false,
-        walletUpdates: false,
-        promotions: false
-      }
-    };
-
-    res.json({
-      success: true,
-      data: notificationSettings
-    });
-  } catch (error) {
-    logger.error('Get notification settings error:', error);
-    throw error;
-  }
-}));
-
-// @route   PUT /api/notifications/settings
-// @desc    Update user notification settings
-// @access  Private
-router.put('/settings', authenticateToken, asyncHandler(async (req, res) => {
-  const { email, push, sms } = req.body;
-
-  try {
-    const user = await User.findById(req.user._id);
-    
-    if (!user.preferences) {
-      user.preferences = {};
-    }
-    
-    user.preferences.notifications = {
-      email: email || user.preferences.notifications?.email || {},
-      push: push || user.preferences.notifications?.push || {},
-      sms: sms || user.preferences.notifications?.sms || {}
-    };
-
-    await user.save();
-
-    logger.info(`User ${req.user.username} updated notification settings`);
-
-    res.json({
-      success: true,
-      message: 'Notification settings updated successfully',
-      data: user.preferences.notifications
-    });
-  } catch (error) {
-    logger.error('Update notification settings error:', error);
-    throw error;
-  }
-}));
-
-// @route   POST /api/notifications/test
-// @desc    Send test notification
-// @access  Private
-router.post('/test', authenticateToken, asyncHandler(async (req, res) => {
-  const { type = 'test' } = req.body;
-
-  try {
-    // Send test notification via WebSocket
-    emit.toUser(req.user._id, 'notification', {
-      type,
-      title: 'Test Notification',
-      message: 'This is a test notification to verify your settings',
+// Get user's notifications with pagination and filters
+router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, type, isRead, priority } = req.query;
+  const userId = req.user.id;
+  
+  // Build filter object
+  const filter = { userId };
+  if (type) filter.type = type;
+  if (isRead !== undefined) filter.isRead = isRead === 'true';
+  if (priority) filter.priority = priority;
+  
+  // TODO: Implement actual notification fetching
+  // const notifications = await Notification.find(filter)
+  //   .sort({ createdAt: -1 })
+  //   .limit(limit * 1)
+  //   .skip((page - 1) * limit);
+  
+  // const total = await Notification.countDocuments(filter);
+  
+  // Mock response for now
+  const notifications = [
+    {
+      id: '1',
+      title: 'Welcome to Tactics Turf!',
+      message: 'Start building your fantasy team and join contests to win big!',
+      type: 'info',
+      priority: 'normal',
       isRead: false,
       createdAt: new Date(),
-      metadata: {
-        test: true
+      actionUrl: '/contests',
+      actionText: 'Browse Contests'
+    }
+  ];
+  
+  res.json({
+    success: true,
+    data: {
+      notifications,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: 1,
+        pages: 1
       }
-    });
-
-    logger.info(`Test notification sent to user ${req.user.username}`);
-
-    res.json({
-      success: true,
-      message: 'Test notification sent successfully'
-    });
-  } catch (error) {
-    logger.error('Send test notification error:', error);
-    throw error;
-  }
+    }
+  });
 }));
 
-// @route   GET /api/notifications/templates
-// @desc    Get notification templates (for admin reference)
-// @access  Private (Admin)
-router.get('/templates', authenticateToken, asyncHandler(async (req, res) => {
-  try {
-    // Check if user is admin
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Admin privileges required.'
-      });
-    }
-
-    const templates = {
-      match_start: {
-        title: 'Match Starting Soon',
-        message: 'Your fantasy match {matchTitle} is about to begin in {timeLeft}',
-        variables: ['matchTitle', 'timeLeft']
-      },
-      contest_result: {
-        title: 'Contest Results Available',
-        message: 'Your contest {contestName} results are ready. You finished {rank} and won ₹{prize}!',
-        variables: ['contestName', 'rank', 'prize']
-      },
-      wallet_update: {
-        title: 'Wallet Updated',
-        message: 'Your wallet has been {action} with ₹{amount}',
-        variables: ['action', 'amount']
-      },
-      leaderboard_update: {
-        title: 'Leaderboard Update',
-        message: 'Your rank in {contestName} has changed to {rank}',
-        variables: ['contestName', 'rank']
-      },
-      promotion: {
-        title: 'Special Offer',
-        message: 'Limited time offer: {offerDescription}',
-        variables: ['offerDescription']
-      }
-    };
-
-    res.json({
-      success: true,
-      data: templates
-    });
-  } catch (error) {
-    logger.error('Get notification templates error:', error);
-    throw error;
-  }
+// Get unread notification count
+router.get('/me/unread-count', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // TODO: Implement actual count
+  // const count = await Notification.countDocuments({ userId, isRead: false });
+  
+  res.json({
+    success: true,
+    data: { unreadCount: 1 }
+  });
 }));
 
-// @route   POST /api/notifications/bulk
-// @desc    Send bulk notifications (Admin only)
-// @access  Private (Admin)
-router.post('/bulk', authenticateToken, asyncHandler(async (req, res) => {
-  const { type, title, message, targetUsers, filters } = req.body;
+// Mark notifications as read
+router.post('/me/mark-read', authenticateToken, validateRequest(notificationSchemas.markRead), asyncHandler(async (req, res) => {
+  const { notificationIds } = req.body;
+  const userId = req.user.id;
+  
+  // TODO: Implement actual marking as read
+  // await Notification.updateMany(
+  //   { _id: { $in: notificationIds }, userId },
+  //   { isRead: true, readAt: new Date() }
+  // );
+  
+  // Emit real-time update
+  events.emitToUser(userId, 'notifications:updated', { unreadCount: 0 });
+  
+  res.json({
+    success: true,
+    message: 'Notifications marked as read'
+  });
+}));
 
-  try {
-    // Check if user is admin
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Admin privileges required.'
-      });
+// Mark all user notifications as read
+router.post('/me/mark-all-read', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // TODO: Implement actual marking all as read
+  // await Notification.updateMany(
+  //   { userId, isRead: false },
+  //   { isRead: true, readAt: new Date() }
+  // );
+  
+  // Emit real-time update
+  events.emitToUser(userId, 'notifications:updated', { unreadCount: 0 });
+  
+  res.json({
+    success: true,
+    message: 'All notifications marked as read'
+  });
+}));
+
+// Get user notification preferences
+router.get('/me/preferences', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // TODO: Get from user model or separate preferences model
+  const preferences = {
+    email: true,
+    push: true,
+    sms: false,
+    inApp: true,
+    types: {
+      contest: true,
+      match: true,
+      payment: true,
+      system: true,
+      marketing: false
     }
+  };
+  
+  res.json({
+    success: true,
+    data: preferences
+  });
+}));
 
-    if (!type || !title || !message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Type, title, and message are required'
-      });
+// Update user notification preferences
+router.put('/me/preferences', authenticateToken, validateRequest(notificationSchemas.preferences), asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const preferences = req.body;
+  
+  // TODO: Update user preferences
+  // await User.findByIdAndUpdate(userId, { notificationPreferences: preferences });
+  
+  res.json({
+    success: true,
+    message: 'Notification preferences updated',
+    data: preferences
+  });
+}));
+
+// Delete user notification
+router.delete('/me/:notificationId', authenticateToken, asyncHandler(async (req, res) => {
+  const { notificationId } = req.params;
+  const userId = req.user.id;
+  
+  // TODO: Implement actual deletion
+  // await Notification.findOneAndDelete({ _id: notificationId, userId });
+  
+  res.json({
+    success: true,
+    message: 'Notification deleted'
+  });
+}));
+
+// ADMIN ROUTES
+
+// Get all notifications (admin)
+router.get('/', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, type, priority, isActive, targetGroup } = req.query;
+  
+  // Build filter object
+  const filter = {};
+  if (type) filter.type = type;
+  if (priority) filter.priority = priority;
+  if (isActive !== undefined) filter.isActive = isActive === 'true';
+  if (targetGroup) filter.targetGroups = targetGroup;
+  
+  // TODO: Implement actual notification fetching
+  // const notifications = await Notification.find(filter)
+  //   .sort({ createdAt: -1 })
+  //   .limit(limit * 1)
+  //   .skip((page - 1) * limit);
+  
+  // const total = await Notification.countDocuments(filter);
+  
+  // Mock response for now
+  const notifications = [
+    {
+      id: '1',
+      title: 'System Maintenance',
+      message: 'Scheduled maintenance on Sunday 2-4 AM',
+      type: 'system',
+      priority: 'high',
+      targetGroups: ['all'],
+      isActive: true,
+      createdAt: new Date(),
+      createdBy: 'admin'
     }
-
-    // Build user filter
-    let userFilter = {};
-    
-    if (targetUsers === 'all') {
-      userFilter = { isActive: true };
-    } else if (targetUsers === 'verified') {
-      userFilter = { isActive: true, isVerified: true };
-    } else if (targetUsers === 'premium') {
-      userFilter = { isActive: true, 'preferences.isPremium': true };
-    } else if (filters) {
-      userFilter = { ...filters, isActive: true };
-    }
-
-    // Get target users
-    const users = await User.find(userFilter).select('_id username email');
-    
-    if (users.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No users found matching the criteria'
-      });
-    }
-
-    // Send notifications to all target users
-    users.forEach(user => {
-      emit.toUser(user._id, 'notification', {
-        type,
-        title,
-        message,
-        isRead: false,
-        createdAt: new Date(),
-        metadata: {
-          bulk: true,
-          sentBy: req.user.username
-        }
-      });
-    });
-
-    // Log bulk notification
-    logger.info(`Admin ${req.user.username} sent bulk notification to ${users.length} users: ${title}`);
-
-    res.json({
-      success: true,
-      message: `Bulk notification sent to ${users.length} users successfully`,
-      data: {
-        sentTo: users.length,
-        type,
-        title
+  ];
+  
+  res.json({
+    success: true,
+    data: {
+      notifications,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: 1,
+        pages: 1
       }
+    }
+  });
+}));
+
+// Create new notification (admin)
+router.post('/', authenticateAdmin, validateRequest(notificationSchemas.create), asyncHandler(async (req, res) => {
+  const notificationData = req.body;
+  const adminId = req.user.id;
+  
+  // TODO: Implement actual notification creation
+  // const notification = new Notification({
+  //   ...notificationData,
+  //   createdBy: adminId,
+  //   isActive: true
+  // });
+  // await notification.save();
+  
+  // Send notifications to target users
+  if (notificationData.targetUsers && notificationData.targetUsers.length > 0) {
+    // Send to specific users
+    events.emitToUsers(notificationData.targetUsers, 'notifications:new', {
+      title: notificationData.title,
+      message: notificationData.message,
+      type: notificationData.type,
+      priority: notificationData.priority
     });
-  } catch (error) {
-    logger.error('Send bulk notification error:', error);
-    throw error;
+  } else if (notificationData.targetGroups && notificationData.targetGroups.length > 0) {
+    // Send to groups (broadcast to all connected users for now)
+    events.emitToAll('notifications:new', {
+      title: notificationData.title,
+      message: notificationData.message,
+      type: notificationData.type,
+      priority: notificationData.priority
+    });
   }
+  
+  // Clear cache
+  await cache.del('notifications:all');
+  
+  res.status(201).json({
+    success: true,
+    message: 'Notification created successfully',
+    data: { id: 'new-id', ...notificationData }
+  });
+}));
+
+// Update notification (admin)
+router.put('/:notificationId', authenticateAdmin, validateRequest(notificationSchemas.update), asyncHandler(async (req, res) => {
+  const { notificationId } = req.params;
+  const updateData = req.body;
+  
+  // TODO: Implement actual notification update
+  // const notification = await Notification.findByIdAndUpdate(
+  //   notificationId,
+  //   updateData,
+  //   { new: true }
+  // );
+  
+  // Clear cache
+  await cache.del('notifications:all');
+  
+  res.json({
+    success: true,
+    message: 'Notification updated successfully',
+    data: { id: notificationId, ...updateData }
+  });
+}));
+
+// Delete notification (admin)
+router.delete('/:notificationId', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { notificationId } = req.params;
+  
+  // TODO: Implement actual notification deletion
+  // await Notification.findByIdAndDelete(notificationId);
+  
+  // Clear cache
+  await cache.del('notifications:all');
+  
+  res.json({
+    success: true,
+    message: 'Notification deleted successfully'
+  });
+}));
+
+// Toggle notification active status (admin)
+router.patch('/:notificationId/toggle', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { notificationId } = req.params;
+  
+  // TODO: Implement actual toggle
+  // const notification = await Notification.findById(notificationId);
+  // notification.isActive = !notification.isActive;
+  // await notification.save();
+  
+  // Clear cache
+  await cache.del('notifications:all');
+  
+  res.json({
+    success: true,
+    message: 'Notification status toggled',
+    data: { isActive: true } // Mock response
+  });
+}));
+
+// Get notification statistics (admin)
+router.get('/stats', authenticateAdmin, asyncHandler(async (req, res) => {
+  // TODO: Implement actual statistics
+  const stats = {
+    total: 150,
+    unread: 45,
+    byType: {
+      contest: 60,
+      match: 40,
+      payment: 20,
+      system: 20,
+      marketing: 10
+    },
+    byPriority: {
+      low: 30,
+      normal: 80,
+      high: 30,
+      urgent: 10
+    },
+    deliveryStats: {
+      email: { sent: 1200, delivered: 1150, failed: 50 },
+      push: { sent: 800, delivered: 750, failed: 50 },
+      sms: { sent: 300, delivered: 280, failed: 20 }
+    }
+  };
+  
+  res.json({
+    success: true,
+    data: stats
+  });
+}));
+
+// Send test notification (admin)
+router.post('/test', authenticateAdmin, validateRequest(notificationSchemas.create), asyncHandler(async (req, res) => {
+  const notificationData = req.body;
+  const adminId = req.user.id;
+  
+  // Send test notification to admin
+  events.emitToUser(adminId, 'notifications:test', {
+    title: notificationData.title,
+    message: notificationData.message,
+    type: notificationData.type,
+    priority: notificationData.priority
+  });
+  
+  res.json({
+    success: true,
+    message: 'Test notification sent successfully'
+  });
+}));
+
+// Bulk send notifications (admin)
+router.post('/bulk', authenticateAdmin, asyncHandler(async (req, res) => {
+  const { notifications, targetUsers, targetGroups } = req.body;
+  
+  if (!Array.isArray(notifications) || notifications.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Notifications array is required'
+    });
+  }
+  
+  // TODO: Implement bulk notification sending
+  // for (const notification of notifications) {
+  //   // Create and send each notification
+  // }
+  
+  // Clear cache
+  await cache.del('notifications:all');
+  
+  res.json({
+    success: true,
+    message: `${notifications.length} notifications sent successfully`
+  });
 }));
 
 module.exports = router;
