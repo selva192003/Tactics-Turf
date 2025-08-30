@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import { auth, googleProvider, signInWithPopup } from '../utils/firebase';
+import { auth, googleProvider } from '../../utils/firebase';
+import { signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 
 const Login = () => {
   const router = useRouter();
@@ -18,41 +19,39 @@ const Login = () => {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
       await authenticateWithBackend(idToken);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Failed to sign in with Google.');
+      setError(err.message || 'Failed to sign in with Google.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    try {
-      // NOTE: For this simple example, we're not using email/password on the backend
-      // But you would get an idToken here as well
-      const result = await auth.signInWithEmailAndPassword(email, password);
-      const idToken = await result.user.getIdToken();
-      await authenticateWithBackend(idToken);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to sign in with email. Check your credentials.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+const handleEmailLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+  setError('');
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const idToken = await result.user.getIdToken();
+    await authenticateWithBackend(idToken);
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message || 'Failed to sign in with email. Check your credentials.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const authenticateWithBackend = async (idToken: string) => {
     try {
       // Make sure your backend server is running on port 5000
       const res = await axios.post('http://localhost:5000/api/auth/login', { token: idToken });
-      
+
       // Store the JWT from our backend securely
       localStorage.setItem('token', res.data.token);
       console.log('Authentication successful:', res.data.user);
-      
+
       // Redirect to the homepage or dashboard
       router.push('/');
     } catch (error) {
@@ -71,7 +70,7 @@ const Login = () => {
           disabled={isLoading}
           className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
         >
-          <img src="/google.svg" alt="Google logo" className="h-5 w-5 mr-2" />
+          <img src="/globe.svg" alt="Google logo icon displayed next to Sign in with Google button in a modern login form. The logo is static and the button text reads Sign in with Google. The environment is clean and minimal, conveying a welcoming and professional tone." className="h-5 w-5 mr-2" />
           <span>Sign in with Google</span>
         </button>
         <p className="text-center text-gray-400 my-4">OR</p>
